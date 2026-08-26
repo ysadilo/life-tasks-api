@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TaskStatus {
+  backlog
+  today
+  needs_triage
+  done
+}
+
+enum BoardRole {
+  owner
+  member
+}
+
+// Populated from Clerk on first sign-in; Clerk owns credentials.
+model User {
+  id        String   @id
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  ownedBoards   Board[]       @relation("BoardOwner")
+  memberships   BoardMember[]
+  assignedTasks Task[]        @relation("TaskAssignee")
+}
+
+model Board {
+  id      String @id @default(cuid())
+  name    String
+  ownerId String
+  owner   User   @relation("BoardOwner", fields: [ownerId], references: [id])
+
+  members   BoardMember[]
+  tasks     Task[]
+  templates TaskTemplate[]
+
+  createdAt DateTime @default(now())
+}
+
+model BoardMember {
+  boardId String
+  userId  String
+  role    BoardRole @default(member)
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([boardId, userId])
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  boardId     String
+  board       Board      @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  dueDate     DateTime?
+  status      TaskStatus @default(backlog)
+  todayDate   DateTime?
+
+  assigneeId  String?
+  assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  templateId  String?
+  template    TaskTemplate? @relation(fields: [templateId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([boardId, status])
+  @@index([boardId, dueDate])
+}
+
+// Recurrence source: an RRULE (RFC 5545), materialized into Task rows.
+model TaskTemplate {
+  id      String @id @default(cuid())
+  boardId String
+  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  rrule       String // e.g. "FREQ=DAILY;INTERVAL=1"
+
+  tasks Task[]
+
+  createdAt DateTime @default(now())
+}
