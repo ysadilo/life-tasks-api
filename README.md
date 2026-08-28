@@ -16,10 +16,17 @@ pnpm start:dev                # API on :3000
 
 ## Status
 
-Phase 1 scaffold: `tasks` and `boards` CRUD, Prisma schema matching the data
-model in `../ARCHITECTURE.md` §5. No auth guard yet (phase 4) — `boardId` /
-`ownerId` are passed as plain query/body params for now, so don't expose this
-past localhost.
+`tasks` and `boards` CRUD, Prisma schema matching the data model in
+`../ARCHITECTURE.md` §5.
+
+Phase 4 (auth) is wired: `Auth0AuthGuard` verifies the caller's Auth0 access
+token (RS256, against the tenant JWKS) on every `/api/tasks` and `/api/boards`
+route, checking `iss` and `aud`. The user id comes from the token `sub`
+(`@CurrentUser()`), not from query/body params. `TasksController` resolves the
+caller's solo board via `BoardsService.resolveSoloBoardId`, which bootstraps the
+`User` + `Board` rows on first request (email read once from Auth0 `/userinfo`).
+Set `AUTH0_DOMAIN` and `AUTH0_AUDIENCE` before starting the API.
+`POST /api/dev/rollover` stays unguarded (already `NODE_ENV`-gated).
 
 The rollover flow from `../ARCHITECTURE.md` §7 and §9 is scaffolded ahead of
 schedule since it's cheap to stand up alongside the schema:
