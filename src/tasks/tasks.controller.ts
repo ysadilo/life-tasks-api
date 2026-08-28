@@ -1,21 +1,28 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { TaskStatus } from '@prisma/client';
 import { TasksService } from './tasks.service';
+import { BoardsService } from '../boards/boards.service';
 import { CreateTaskDto, UpdateTaskDto } from './task.dto';
+import { Auth0AuthGuard } from '../auth/auth0-auth.guard';
+import { AccessToken, CurrentUser } from '../auth/current-user.decorator';
 
 @Controller('tasks')
+@UseGuards(Auth0AuthGuard)
 export class TasksController {
-  constructor(private readonly tasks: TasksService) {}
+  constructor(
+    private readonly tasks: TasksService,
+    private readonly boards: BoardsService
+  ) {}
 
   @Get()
-  findMany(
-    // boardId is a query param until phase 4 wires the JWT guard,
-    // which will derive it from the caller's session instead.
-    @Query('boardId') boardId: string,
+  async findMany(
+    @CurrentUser() userId: string,
+    @AccessToken() token: string,
     @Query('status') status?: TaskStatus,
     @Query('from') from?: string,
     @Query('to') to?: string
   ) {
+    const boardId = await this.boards.resolveSoloBoardId(userId, token);
     return this.tasks.findMany({
       boardId,
       status,
@@ -25,23 +32,31 @@ export class TasksController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.tasks.findOne(id);
+  async findOne(@CurrentUser() userId: string, @AccessToken() token: string, @Param('id') id: string) {
+    const boardId = await this.boards.resolveSoloBoardId(userId, token);
+    return this.tasks.findOne(id, boardId);
   }
 
   @Post()
-  create(@Body() dto: CreateTaskDto) {
-    const { boardId, ...data } = dto;
-    return this.tasks.create(boardId, data);
+  async create(@CurrentUser() userId: string, @AccessToken() token: string, @Body() dto: CreateTaskDto) {
+    const boardId = await this.boards.resolveSoloBoardId(userId, token);
+    return this.tasks.create(boardId, dto);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateTaskDto) {
-    return this.tasks.update(id, dto);
+  async update(
+    @CurrentUser() userId: string,
+    @AccessToken() token: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateTaskDto
+  ) {
+    const boardId = await this.boards.resolveSoloBoardId(userId, token);
+    return this.tasks.update(id, dto, boardId);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.tasks.remove(id);
+  async remove(@CurrentUser() userId: string, @AccessToken() token: string, @Param('id') id: string) {
+    const boardId = await this.boards.resolveSoloBoardId(userId, token);
+    return this.tasks.remove(id, boardId);
   }
 }

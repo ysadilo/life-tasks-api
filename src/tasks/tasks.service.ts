@@ -27,9 +27,11 @@ export class TasksService {
     return this.prisma.task.findMany({ where, orderBy: { dueDate: 'asc' } });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, boardId?: string) {
     const task = await this.prisma.task.findUnique({ where: { id } });
-    if (!task) throw new NotFoundException(`Task ${id} not found`);
+    if (!task || (boardId && task.boardId !== boardId)) {
+      throw new NotFoundException(`Task ${id} not found`);
+    }
     return task;
   }
 
@@ -39,13 +41,13 @@ export class TasksService {
     });
   }
 
-  async update(id: string, data: Prisma.TaskUpdateInput) {
-    await this.findOne(id);
+  async update(id: string, data: Prisma.TaskUpdateInput, boardId?: string) {
+    await this.findOne(id, boardId);
     return this.prisma.task.update({ where: { id }, data });
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(id: string, boardId?: string) {
+    await this.findOne(id, boardId);
     await this.prisma.task.delete({ where: { id } });
   }
 }
