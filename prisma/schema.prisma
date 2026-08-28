@@ -27,6 +27,19 @@ enum BoardRole {
   member
 }
 
+enum Priority {
+  P1
+  P2
+  P3
+  P4
+}
+
+enum Energy {
+  low
+  medium
+  high
+}
+
 // Populated from Clerk on first sign-in; Clerk owns credentials.
 model User {
   id        String   @id
@@ -74,6 +87,9 @@ model Task {
   todayDate   DateTime?
   completedAt DateTime?
   area        LifeArea?
+  priority    Priority?
+  energy      Energy?
+  estimatedMinutes Int?
 
   assigneeId  String?
   assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
