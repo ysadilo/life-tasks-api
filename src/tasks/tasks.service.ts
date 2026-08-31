@@ -42,7 +42,10 @@ export class TasksService {
   }
 
   async update(id: string, data: Prisma.TaskUpdateInput, boardId?: string) {
-    await this.findOne(id, boardId);
+    const current = await this.findOne(id, boardId);
+    if (typeof data.status === 'string' && data.status !== current.status) {
+      data = { ...data, completedAt: data.status === TaskStatus.done ? new Date() : null };
+    }
     return this.prisma.task.update({ where: { id }, data });
   }
 
