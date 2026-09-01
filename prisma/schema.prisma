@@ -40,6 +40,14 @@ enum Energy {
   high
 }
 
+enum Recurrence {
+  daily
+  weekdays
+  weekly
+  biweekly
+  monthly
+}
+
 // Populated from Clerk on first sign-in; Clerk owns credentials.
 model User {
   id        String   @id
@@ -58,8 +66,7 @@ model Board {
   owner   User   @relation("BoardOwner", fields: [ownerId], references: [id])
 
   members   BoardMember[]
-  tasks     Task[]
-  templates TaskTemplate[]
+  tasks Task[]
 
   createdAt DateTime @default(now())
 }
@@ -91,30 +98,22 @@ model Task {
   energy      Energy?
   estimatedMinutes Int?
 
+  // A recurring task is a single "series" row. Occurrences are virtual — derived
+  // from the rule between dueDate (the first occurrence) and recurrenceEndDate —
+  // and never materialized as their own rows. completedDates records which
+  // occurrence days have been ticked off.
+  // ponytail: completedDates as an array grows ~365/yr for a daily task; move to
+  // a TaskOccurrence table if that ever matters.
+  recurrence        Recurrence?
+  recurrenceEndDate DateTime?
+  completedDates    DateTime[] @default([])
+
   assigneeId  String?
   assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
-
-  templateId  String?
-  template    TaskTemplate? @relation(fields: [templateId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([boardId, status])
   @@index([boardId, dueDate])
-}
-
-// Recurrence source: an RRULE (RFC 5545), materialized into Task rows.
-model TaskTemplate {
-  id      String @id @default(cuid())
-  boardId String
-  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
-
-  title       String
-  description String?
-  rrule       String // e.g. "FREQ=DAILY;INTERVAL=1"
-
-  tasks Task[]
-
-  createdAt DateTime @default(now())
 }
