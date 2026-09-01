@@ -1,0 +1,86 @@
+# Raspberry Pi deployment — backend
+
+Deploy first (owns Postgres + the shared network). Then do the frontend repo.
+
+## One-time Pi setup
+
+Assumes 64-bit Raspberry Pi OS (arm64) on a Pi 4/5.
+
+```bash
+# Docker
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER        # re-login after this
+
+# Tailscale — how the app is reached and how CI SSHes in (no port forwarding)
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up --ssh                       # approve the node in the admin console
+tailscale status                              # note this Pi's MagicDNS name
+
+# Shared network for both compose projects
+docker network create life-tasks
+
+# Repos (siblings under ~)
+git clone https://github.com/yuliiasadilo/life-tasks-backend.git ~/life-tasks-backend
+git clone https://github.com/yuliiasadilo/life-tasks-frontend.git ~/life-tasks-frontend
+
+# Backend env
+cd ~/life-tasks-backend/deploy
+cp .env.example .env && nano .env    # POSTGRES_PASSWORD, AUTH0_DOMAIN, AUTH0_AUDIENCE
+
+# GHCR is private by default — log in once so `compose pull` works
+echo <GHCR_PAT> | docker login ghcr.io -u yuliiasadilo --password-stdin
+```
+
+## Access — no port forwarding
+
+The Pi has no public IP. Two outbound-only tunnels, one job each:
+
+- **CI → Pi:** the deploy workflow joins the GitHub runner to your tailnet and
+  SSHes to the Pi's MagicDNS name. Set `PI_HOST` to that name (e.g.
+  `raspberrypi.tailXXXXXX.ts.net`).
+- **Users → app:** a Cloudflare Tunnel serves `https://lifetasks.today` from the
+  frontend container (configured in the frontend repo's `deploy/`). The backend
+  itself is never exposed — it's reached only as `backend:3000` on the shared
+  Docker network.
+
+### CI access
+
+1. Admin console → Settings → OAuth clients → generate one with the `auth_keys`
+   scope and tag `tag:ci`. First define `tag:ci` under Access Controls, e.g.:
+   ```jsonc
+   "tagOwners": { "tag:ci": ["your-user@github"] }
+   ```
+2. Add repo secrets `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET`.
+3. The Pi ran `tailscale up --ssh`, so the ephemeral CI node can SSH in with no
+   key — but `appleboy/ssh-action` still wants a key, so also keep `PI_SSH_KEY`
+   (a normal SSH keypair, public half in the Pi's `~/.ssh/authorized_keys`).
+
+## GitHub Actions secrets (this repo → Settings → Secrets → Actions)
+
+| Secret               | Value                                                          |
+| -------------------- | -------------------------------------------------------------- |
+| `PI_HOST`            | Pi MagicDNS name (`raspberrypi.tailXXXXXX.ts.net`)             |
+| `PI_USER`            | SSH user (`blcktqq`)                                           |
+| `PI_SSH_KEY`         | private key whose public half is in the Pi's `authorized_keys` |
+| `TS_OAUTH_CLIENT_ID` | Tailscale OAuth client id                                      |
+| `TS_OAUTH_SECRET`    | Tailscale OAuth client secret                                  |
+
+`GITHUB_TOKEN` is automatic and pushes the image to `ghcr.io/yuliiasadilo/life-tasks-backend`.
+
+## Deploy
+
+Push to `main` → the workflow builds the arm64 image, pushes to GHCR, SSHes in,
+and runs `docker compose pull && up -d` in `deploy/`. Migrations
+(`prisma migrate deploy`) run automatically on container start.
+
+Manual first run:
+
+```bash
+cd ~/life-tasks-backend/deploy && docker compose up -d
+```
+
+## Backups (do this yourself, not automated here)
+
+```bash
+docker compose exec postgres pg_dump -U life_tasks life_tasks > backup-$(date +%F).sql
+```

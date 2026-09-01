@@ -1,0 +1,32 @@
+# Raspberry Pi deployment: Postgres + backend API.
+# Frontend lives in its own repo/compose and joins the shared `life-tasks` network.
+#   docker network create life-tasks   # once, before first `up`
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: life_tasks
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: life_tasks
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [life-tasks]
+
+  backend:
+    image: ghcr.io/yuliiasadilo/life-tasks-backend:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://life_tasks:${POSTGRES_PASSWORD}@postgres:5432/life_tasks?schema=public
+      NODE_ENV: production
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN:?set AUTH0_DOMAIN in .env}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:?set AUTH0_AUDIENCE in .env}
+    depends_on: [postgres]
+    networks: [life-tasks]
+
+volumes:
+  pgdata: {}
+
+networks:
+  life-tasks:
+    external: true
