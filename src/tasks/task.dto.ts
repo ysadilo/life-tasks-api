@@ -1,4 +1,4 @@
-import { Energy, LifeArea, Priority, TaskStatus } from '@prisma/client';
+import { Energy, LifeArea, Priority, Recurrence, TaskStatus } from '@prisma/client';
 
 export class CreateTaskDto {
   title!: string;
@@ -8,6 +8,8 @@ export class CreateTaskDto {
   priority?: Priority;
   energy?: Energy;
   estimatedMinutes?: number;
+  recurrence?: Recurrence;
+  recurrenceEndDate?: string;
 }
 
 export class UpdateTaskDto {
@@ -20,4 +22,11 @@ export class UpdateTaskDto {
   priority?: Priority;
   energy?: Energy;
   estimatedMinutes?: number;
+  recurrence?: Recurrence | null;
+  recurrenceEndDate?: string | null;
+
+  // Tick / untick one occurrence day of a recurring task (mutually exclusive with
+  // the fields above — this is not a normal edit).
+  occurrenceDate?: string;
+  occurrenceDone?: boolean;
 }
