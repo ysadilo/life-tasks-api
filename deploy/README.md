@@ -21,8 +21,8 @@ tailscale status                              # note this Pi's MagicDNS name
 docker network create life-tasks
 
 # Repos (siblings under ~)
-git clone https://github.com/yuliiasadilo/life-tasks-backend.git ~/life-tasks-backend
-git clone https://github.com/yuliiasadilo/life-tasks-frontend.git ~/life-tasks-frontend
+git clone https://github.com/ysadilo/life-tasks-backend.git ~/life-tasks-backend
+git clone https://github.com/ysadilo/life-tasks-frontend.git ~/life-tasks-frontend
 
 # Backend env
 cd ~/life-tasks-backend/deploy
