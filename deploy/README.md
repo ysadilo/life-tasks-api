@@ -1,6 +1,7 @@
 # Raspberry Pi deployment — backend
 
 Deploy first (owns Postgres + the shared network). Then do the frontend repo.
+The image is built **on the Pi** (arm64-native) — there is no registry.
 
 ## One-time Pi setup
 
@@ -10,6 +11,11 @@ Assumes 64-bit Raspberry Pi OS (arm64) on a Pi 4/5.
 # Docker
 curl -fsSL https://get.docker.com | sh
 sudo usermod -aG docker $USER        # re-login after this
+
+# Tailscale — lets CI SSH in without port forwarding
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up --ssh                       # approve the node in the admin console
+tailscale status                              # note this Pi's MagicDNS name
 
 # Shared network for both compose projects
 docker network create life-tasks
@@ -21,38 +27,53 @@ git clone https://github.com/yuliiasadilo/life-tasks-frontend.git ~/life-tasks-f
 # Backend env
 cd ~/life-tasks-backend/deploy
 cp .env.example .env && nano .env    # POSTGRES_PASSWORD, AUTH0_DOMAIN, AUTH0_AUDIENCE
-
-# GHCR is private by default — log in once so `compose pull` works
-echo <GHCR_PAT> | docker login ghcr.io -u yuliiasadilo --password-stdin
 ```
 
-## Network / DNS
+## Access — no port forwarding
 
-- Point an A record for your domain at the Pi's public IP (use a dynamic-DNS
-  provider if your ISP IP changes).
-- Forward router ports **80** and **443** to the Pi. Caddy (frontend repo) needs
-  both to get and renew the Let's Encrypt cert. The backend exposes no host ports.
+The Pi has no public IP:
+
+- **CI → Pi:** the deploy workflow joins the GitHub runner to your tailnet and
+  SSHes to the Pi's MagicDNS name. Set `PI_HOST` to that name (e.g.
+  `raspberrypi.tailXXXXXX.ts.net`).
+- **Users → app:** a Cloudflare Tunnel serves `https://lifetasks.today` from the
+  frontend container (configured in the frontend repo's `deploy/`). The backend
+  itself is never exposed — reached only as `backend:3000` on the shared network.
+
+### CI access — Tailscale OAuth
+
+1. Admin console → **Access controls** → add the tag:
+   ```jsonc
+   "tagOwners": { "tag:ci": ["autogroup:admin"] }
+   ```
+2. Admin console → **Settings → OAuth clients**
+   (<https://login.tailscale.com/admin/settings/oauth>) → **Generate OAuth
+   client**, scope **Auth Keys → Write**, tag **`tag:ci`**. Copy the client id +
+   secret (secret shown once).
+3. Add repo secrets `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET`.
+4. `appleboy/ssh-action` needs a key, so also add `PI_SSH_KEY` — a normal SSH
+   keypair whose public half is in the Pi's `~/.ssh/authorized_keys`.
 
 ## GitHub Actions secrets (this repo → Settings → Secrets → Actions)
 
-| Secret       | Value                                                                 |
-| ------------ | --------------------------------------------------------------------- |
-| `PI_HOST`    | Pi public IP or hostname                                              |
-| `PI_USER`    | SSH user (e.g. `pi`)                                                  |
-| `PI_SSH_KEY` | private key whose public half is in the Pi's `~/.ssh/authorized_keys` |
-
-`GITHUB_TOKEN` is automatic and pushes the image to `ghcr.io/yuliiasadilo/life-tasks-backend`.
+| Secret               | Value                                                          |
+| -------------------- | -------------------------------------------------------------- |
+| `PI_HOST`            | Pi MagicDNS name (`raspberrypi.tailXXXXXX.ts.net`)             |
+| `PI_USER`            | SSH user (`blcktqq`)                                           |
+| `PI_SSH_KEY`         | private key whose public half is in the Pi's `authorized_keys` |
+| `TS_OAUTH_CLIENT_ID` | Tailscale OAuth client id                                      |
+| `TS_OAUTH_SECRET`    | Tailscale OAuth client secret                                  |
 
 ## Deploy
 
-Push to `main` → the workflow builds the arm64 image, pushes to GHCR, SSHes in,
-and runs `docker compose pull && up -d` in `deploy/`. Migrations
-(`prisma migrate deploy`) run automatically on container start.
+Push to `main` → the workflow joins the tailnet, SSHes to the Pi, and runs
+`git pull && docker compose up -d --build` in `deploy/`. The image builds on the
+Pi; migrations (`prisma migrate deploy`) run automatically on container start.
 
-Manual first run:
+Manual run (also the first bring-up):
 
 ```bash
-cd ~/life-tasks-backend/deploy && docker compose up -d
+cd ~/life-tasks-backend/deploy && docker compose up -d --build
 ```
 
 ## Backups (do this yourself, not automated here)

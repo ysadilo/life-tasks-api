@@ -1,4 +1,4 @@
-# Raspberry Pi deployment: Postgres + backend API.
+# Raspberry Pi deployment: Postgres + backend API. Image is built on the Pi.
 # Frontend lives in its own repo/compose and joins the shared `life-tasks` network.
 #   docker network create life-tasks   # once, before first `up`
 services:
@@ -14,7 +14,8 @@ services:
     networks: [life-tasks]
 
   backend:
-    image: ghcr.io/yuliiasadilo/life-tasks-backend:latest
+    build:
+      context: ..
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://life_tasks:${POSTGRES_PASSWORD}@postgres:5432/life_tasks?schema=public
