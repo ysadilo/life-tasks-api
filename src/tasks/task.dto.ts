@@ -1,10 +1,10 @@
-import { Energy, LifeArea, Priority, Recurrence, TaskStatus } from '@prisma/client';
+import { Energy, Priority, Recurrence, TaskStatus } from '@prisma/client';
 
 export class CreateTaskDto {
   title!: string;
   description?: string;
   dueDate?: string;
-  area?: LifeArea;
+  areaId?: string | null;
   priority?: Priority;
   energy?: Energy;
   estimatedMinutes?: number;
@@ -18,7 +18,7 @@ export class UpdateTaskDto {
   dueDate?: string;
   status?: TaskStatus;
   todayDate?: string;
-  area?: LifeArea;
+  areaId?: string | null;
   priority?: Priority;
   energy?: Energy;
   estimatedMinutes?: number;

@@ -14,14 +14,6 @@ enum TaskStatus {
   done
 }
 
-enum LifeArea {
-  home
-  health
-  money
-  social
-  admin
-}
-
 enum BoardRole {
   owner
   member
@@ -67,8 +59,28 @@ model Board {
 
   members   BoardMember[]
   tasks Task[]
+  lifeAreas LifeArea[]
 
   createdAt DateTime @default(now())
+}
+
+// Ordered per-board list, capped at 10 by LifeAreasService. `order` also picks
+// the display colour client-side (palette slot = order % 10) and the fallback
+// area a deleted area's tasks are reassigned to (lowest remaining order).
+model LifeArea {
+  id      String @id @default(cuid())
+  boardId String
+  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  name  String
+  order Int
+
+  tasks Task[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([boardId, name])
+  @@index([boardId, order])
 }
 
 model BoardMember {
@@ -93,7 +105,8 @@ model Task {
   status      TaskStatus @default(backlog)
   todayDate   DateTime?
   completedAt DateTime?
-  area        LifeArea?
+  areaId      String?
+  area        LifeArea?  @relation(fields: [areaId], references: [id], onDelete: SetNull)
   priority    Priority?
   energy      Energy?
   estimatedMinutes Int?
