@@ -118,3 +118,10 @@ describe('TasksService recurrence needs a start date', () => {
     await expect(service.update('1', { recurrence: Recurrence.weekly })).resolves.toBeDefined();
   });
 });
+
+describe('TasksService areaId', () => {
+  it('passes areaId through to prisma as a scalar, not a relation connect', () => {
+    const data = service.create('b1', { title: 'x', areaId: 'area1' });
+    expect(data).toMatchObject({ boardId: 'b1', areaId: 'area1' });
+  });
+});

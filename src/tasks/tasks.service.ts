@@ -67,7 +67,7 @@ export class TasksService {
     return task;
   }
 
-  create(boardId: string, data: Prisma.TaskCreateWithoutBoardInput) {
+  create(boardId: string, data: Prisma.TaskUncheckedCreateWithoutBoardInput) {
     if (data.recurrence && !data.dueDate) {
       throw new BadRequestException('A recurring task needs a start date (dueDate).');
     }
@@ -79,13 +79,13 @@ export class TasksService {
       if (promo) data = { ...data, ...promo };
     }
     return this.prisma.task.create({
-      data: { ...data, board: { connect: { id: boardId } } },
+      data: { ...data, boardId },
     });
   }
 
   /** A one-off task due today (or earlier) belongs on Today, not the backlog. */
   private dueTodayPromotion(
-    dueDate: Prisma.TaskCreateWithoutBoardInput['dueDate'],
+    dueDate: Prisma.TaskUncheckedCreateWithoutBoardInput['dueDate'],
     status: TaskStatus
   ): { status: TaskStatus; todayDate: Date } | null {
     if (!dueDate || status !== TaskStatus.backlog) return null;
@@ -102,7 +102,7 @@ export class TasksService {
     }
 
     const { occurrenceDone: _od, occurrenceDate: _oda, ...rest } = dto;
-    let data: Prisma.TaskUpdateInput = { ...rest };
+    let data: Prisma.TaskUncheckedUpdateInput = { ...rest };
 
     const recurrence = 'recurrence' in data ? data.recurrence : current.recurrence;
     const dueDate = 'dueDate' in data ? data.dueDate : current.dueDate;
@@ -113,7 +113,7 @@ export class TasksService {
       data = { ...data, status: TaskStatus.backlog, todayDate: null };
     } else {
       const promo = this.dueTodayPromotion(
-        ('dueDate' in data ? data.dueDate : current.dueDate) as Prisma.TaskCreateWithoutBoardInput['dueDate'],
+        ('dueDate' in data ? data.dueDate : current.dueDate) as Prisma.TaskUncheckedCreateWithoutBoardInput['dueDate'],
         (data.status as TaskStatus) ?? current.status
       );
       if (promo) data = { ...data, ...promo };
